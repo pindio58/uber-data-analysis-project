@@ -1,0 +1,27 @@
+FROM apache/spark-py:latest
+
+LABEL Author="Bhupinderjit Singh" \
+      version="1.0" \
+      Description="Docker image that will be used for buidling prject for Uber data analysis" \
+      project="Data Engineering Project"
+
+USER root
+
+ENV SPARK_HOME=/opt/spark
+ENV PATH=$SPARK_HOME/bin:$SPARK_HOME/sbin:/usr/bin/local:$PATH
+
+ARG HADOOP_VERSION=3.3.4
+ENV HADOOP_VERSION=${HADOOP_VERSION}
+
+WORKDIR ${SPARK_HOME}/jars
+
+RUN wget -q https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/${HADOOP_VERSION}/hadoop-aws-${HADOOP_VERSION}.jar && \
+    wget -q https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar
+
+
+RUN pip install -no-cache-dir \
+        findspark \
+        requests \
+        python-dotenv
+
+WORKDIR ${SPARK_HOME}/work-dir

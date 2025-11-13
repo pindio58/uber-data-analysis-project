@@ -1,0 +1,11 @@
+.env
+logs/*
+config/*
+shared/data/*
+.devcontainer
+dags/test1.py
+dags/__pycache__
+notebooks/*
+shared/logs/*
+shared/utils/__pycache__
+spark_jobs/test.py

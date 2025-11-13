@@ -1,0 +1,22 @@
+FROM apache/airflow:latest
+
+LABEL Author="Bhupinderjit Singh"
+LABEL Description="Image build on top to airflow PLUS installpyspark and its library" \
+      Version=1.0
+
+USER root
+
+RUN apt-get update && apt-get install -y curl \
+                                        wget \
+                                        openjdk-17-jdk \
+                                        && rm -rf /var/lib/apt/lists/*
+                                
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH=${JAVA_HOME}/bin:$PATH                                    
+
+USER airflow
+
+RUN pip install pyspark=3.4.0 \
+                apache-airflow-providers-apache-spark
+
+WORKDIR /opt/airflow
