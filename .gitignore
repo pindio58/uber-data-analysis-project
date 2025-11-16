@@ -9,3 +9,7 @@ notebooks/*
 shared/logs/*
 shared/utils/__pycache__
 spark_jobs/test.py
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
