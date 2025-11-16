@@ -7,15 +7,31 @@ if str(BASE_DIR) not in sys.path:
 
 DATA_DIR = BASE_DIR / "shared" / "data"
 file_path = str(DATA_DIR / "uberData.csv")
-# print(f)
+
 script_path = str(BASE_DIR / "spark_jobs" / "uber_solution.py")
 
 from airflow.sdk import dag, task
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from datetime import datetime
-from shared.utils.commonUtils import delete_file, download_file, get_logger
+from airflow.providers.standard.operators.empty import EmptyOperator
+
+from shared.utils.commonUtils import delete_file, download_file
 from shared.settings import URL
 
+# ---- Define Tasks -----
+@task
+def get_file(URL,path):
+    file = download_file(url=URL,
+                            path=str(path))
+    return file
+
+@task
+def del_file(path):
+    delete_file(file_name=path)
+    return path
+
+
+# ------ default arguments ----
 default_args={
     'owner':'pindio58',
     'depends_on_past':False,
@@ -23,6 +39,8 @@ default_args={
     'email_on_failure':False
 }
 
+
+# --- Define DAG -----
 @dag(
     default_args=default_args,
     schedule=None,
@@ -34,22 +52,17 @@ default_args={
 )
 def perform_analysis():
 
-    @task
-    def get_file(URL,path):
-        file = download_file(url=URL,
-                             path=str(path))
-        return file
-    
+    start = EmptyOperator(task_id='start')
+    end = EmptyOperator(task_id='end')
     download = get_file(URL,str(file_path))
 
-    spark_tasks = []
+    question_ids = "{{  dag_run.conf.get('question_id','') }}"
 
-    for q in range(1,11):
-        t = SparkSubmitOperator(
-                    task_id=f"question_{q}",
+    spark_task = SparkSubmitOperator(
+                    task_id="run_questions",
                     application=script_path,
                     application_args=[
-                        f"--question-id={q}",
+                        f"--question-id={question_ids}",
                         f"--path={file_path}"
                     ],
                     conn_id="spark_default",
@@ -61,12 +74,9 @@ def perform_analysis():
                     verbose=True,
                     env_vars={"JAVA_HOME":"/usr/lib/jvm/java-17-openjdk-arm64/"} 
         )
-        spark_tasks.append(t)
     
-    # -- this is for sequential chaining --
-    
-    download >> spark_tasks[0]
-    for _ in range(1, len(spark_tasks)):
-        spark_tasks[_-1] >> spark_tasks[_]
+    cleanup_file = del_file(path=file_path)
+
+    start >> download >> spark_task >> cleanup_file >> end
 
 perform_analysis()

@@ -14,8 +14,11 @@ LOG_FILE = LOG_DIR / f"logs-{curr_time}.log"
 
 def get_logger(name:str):
     logger = logging.getLogger(name)
-    if not logger.handlers:
-        logger.setLevel(logging.DEBUG)
+    if logger.handlers:
+        return logger
+    
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
 
     # file handler
     file_handler = logging.FileHandler(LOG_FILE, delay=True)

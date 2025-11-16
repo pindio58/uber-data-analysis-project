@@ -1,11 +1,9 @@
-import sys
 from pathlib import Path
 
-from shared import settings
 from shared.utils.commonUtils import get_logger
+from shared import settings
 
 from pyspark.sql import SparkSession
-from shared import settings
 
 # ---------- Spark Session ----------
 
@@ -27,8 +25,8 @@ def get_spark_session(appname, use_minio=False):
         builder = (
             builder
             .config("spark.hadoop.fs.s3a.endpoint", settings.MINIO_ENDPOINT)
-            .config("spark.hadoop.fs.s3a.access.key", settings.MINIO_ACCESS_KEY)
-            .config("spark.hadoop.fs.s3a.secret.key", settings.MINIO_SECRET_KEY)
+            .config("spark.hadoop.fs.s3a.access.key", settings.UBERUSER) # change here, no admin
+            .config("spark.hadoop.fs.s3a.secret.key", settings.UBERPASS) # change here, no admin
             .config("spark.hadoop.fs.s3a.path.style.access", "true")
             .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
             .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false")

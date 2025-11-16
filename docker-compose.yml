@@ -151,6 +151,8 @@ services:
     environment:
       <<: *airflow-common-env
       AIRFLOW_CONN_SPARK_DEFAULT: ${SPARK_CONN}
+      AIRFLOW_CONN_MINIO_DEFAULT: ${MINIO_CONN}
+
 
   airflow-scheduler:
     <<: *airflow-common

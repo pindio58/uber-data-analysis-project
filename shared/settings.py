@@ -19,6 +19,8 @@ for env_file in env_files:
 # all the variables
 MINIO_ACCESS_KEY=os.getenv('MINIO_ACCESS_KEY')
 MINIO_SECRET_KEY=os.getenv('MINIO_SECRET_KEY')
+UBERUSER=os.getenv('UBERUSER')
+UBERPASS=os.getenv('UBERPASS')
 MINIO_ENDPOINT=os.getenv('MINIO_ENDPOINT')
 BUCKET_NAME=os.getenv('BUCKET_NAME')
 HADOOP_AWS_JAR = "org.apache.hadoop:hadoop-aws:3.3.4"

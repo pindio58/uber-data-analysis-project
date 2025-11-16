@@ -16,7 +16,9 @@ from pyspark.sql import DataFrame
 import argparse
 
 spark = get_spark_session(appname=appname, use_minio=True)
-# logger = get_logger(__name__)
+
+# initialize logger
+logger = get_logger(appname)
 
 def standardize(df:DataFrame)-> DataFrame:    
     # rename columns
@@ -30,6 +32,7 @@ def standardize(df:DataFrame)-> DataFrame:
         'Date': 'date'
     }
     
+    logger.info("standardize: renaming columns")
     for old,new in columns_rename.items():
         df = df.withColumnRenamed(old, new)
 
@@ -40,7 +43,7 @@ def standardize(df:DataFrame)-> DataFrame:
 
     # Add new column
     df = df.withColumn(
-        "timeLocalTs",
+        "timeLocalTS",
         F.to_timestamp(
             F.concat(
                 F.to_date('date', "dd-MMM-yy"),
@@ -51,11 +54,14 @@ def standardize(df:DataFrame)-> DataFrame:
         )
     )
 
+    logger.debug("standardize: schema=%s", df.schema.simpleString())
+    logger.info("standardize: completed")
     return df
 
 
 # 1. Which date had the most completed trips during the two-week period?
 def q1(df:DataFrame)->DataFrame:
+    logger.info("q1: computing date with most completed trips")
     
     date_with_most_completed_trips = (
         df.groupBy("date")
@@ -64,17 +70,25 @@ def q1(df:DataFrame)->DataFrame:
         .limit(1)
     )
 
-    return date_with_most_completed_trips
+    # return date_with_most_completed_trips
+    write_data(
+        df=date_with_most_completed_trips,
+        bucket_name=BUCKET_NAME,
+        folder='question1'
+    )
+    logger.info("q1: written to %s/question1", BUCKET_NAME)
+
 
 # 2. What was the highest number of completed trips within a 24-hour period?
 # instead of taking 24 hours from midnight to midnight, we willl take it from min date/hour available
 def q2(df:DataFrame)->DataFrame:
-    
-    min_dt = df.agg(F.min('timeLocalTs')).collect()[0][0]
+    logger.info("q2: computing highest number of completed trips in any 24-hour window")
+
+    min_dt = df.agg(F.min('timeLocalTS')).collect()[0][0]
     offset_hour = min_dt.hour
     offset_str = f'{offset_hour} hours'
 
-    window = F.window('timelocalTs' , '24 hours', startTime=offset_str) # see diff between sql.functions.window vs sql.window
+    window = F.window('timeLocalTS' , '24 hours', startTime=offset_str) # see diff between sql.functions.window vs sql.window
     
     highest_number_of_completed_trips = (
         df.groupBy(window)
@@ -82,12 +96,18 @@ def q2(df:DataFrame)->DataFrame:
         .orderBy(F.desc(F.col('completed_trips_per_24_hour')))
         .limit(1)
     )
-    return highest_number_of_completed_trips
+    write_data(
+        df=highest_number_of_completed_trips,
+        bucket_name=BUCKET_NAME,
+        folder='question2'
+    )
+    logger.info("q2: written to %s/question2", BUCKET_NAME)
 
 
 # 3. Which hour of the day had the most requests during the two-week period?
 def q3(df:DataFrame)->DataFrame:
-    
+    logger.info("q3: computing hour with most requests")
+
     hour_of_the_day = (
         df.groupBy('hour')
         .agg(F.sum('requests').alias('requestsPerHour'))
@@ -95,11 +115,17 @@ def q3(df:DataFrame)->DataFrame:
         .limit(1)
     )
     
-    return hour_of_the_day
+    write_data(
+        df=hour_of_the_day,
+        bucket_name=BUCKET_NAME,
+        folder='question3'
+    )
+    logger.info("q3: written to %s/question3", BUCKET_NAME)
 
 # 4. What percentages of all zeroes during the two-week period occurred on weekends (Friday at 5 pm to Sunday at 3 am)?
 def q4(df:DataFrame):
-    
+    logger.info("q4: computing weekend zeroes percentage")
+
     weekend_zeroes_df=(
         
         df.filter(
@@ -121,10 +147,16 @@ def q4(df:DataFrame):
         .withColumn('percentage', (F.col('weekend_zeroes')/ F.col('Total_zeroes'))*100)
     )
 
-    return percentage_df
+    write_data(
+        df=percentage_df,
+        bucket_name=BUCKET_NAME,
+        folder='question4'
+    )
+    logger.info("q4: written to %s/question4", BUCKET_NAME)
 
 # 5. What is the weighted average ratio of completed trips per driver during the two-week period?
 def q5(df:DataFrame)-> DataFrame:
+    logger.info("q5: computing weighted average ratio of completed trips per driver")
     completed_trips_per_hour_df = (
         df.groupBy('hour').
             agg(F.sum(F.col('completed_trips')).alias('completed_trips_per_hour'))
@@ -156,12 +188,18 @@ def q5(df:DataFrame)-> DataFrame:
              F.sum(F.col('completed_trips_per_hour'))).alias('weighted_average'))
     )
 
-    return result
+    write_data(
+        df=result,
+        bucket_name=BUCKET_NAME,
+        folder='question5'
+    )
+    logger.info("q5: written to %s/question5", BUCKET_NAME)
 
 # 6. In drafting a driver schedule in terms of 8 hours shifts, when are the busiest 8 consecutive hours over the two-week period in terms of unique requests? 
 #    A new shift starts every 8 hours. Assume that a driver will work the same shift each day.
 def q6(df:DataFrame)-> DataFrame:
-    window = Window.orderBy('timeLocalTs').rowsBetween(Window.currentRow, 7)
+    logger.info("q6: computing busiest 8 consecutive hours")
+    window = Window.orderBy('timeLocalTS').rowsBetween(Window.currentRow, 7)
     
     df_requests = (
         df
@@ -169,21 +207,35 @@ def q6(df:DataFrame)-> DataFrame:
         .orderBy(F.desc(F.col('requests_in_8h')))
         .limit(1)
         .select(
-            F.col('timeLocalTs').alias('start_time'), 
-            F.col('timeLocalTs')+ F.expr('INTERVAL 8 HOURS').alias('end_time'),
+            F.col('timeLocalTS').alias('start_time'), 
+            F.col('timeLocalTS')+ F.expr('INTERVAL 8 HOURS').alias('end_time'),
             F.col('requests_in_8h')
         )
     )
-    return df_requests
+    write_data(
+        df=df_requests,
+        bucket_name=BUCKET_NAME,
+        folder='question6'
+    )
+    logger.info("q6: written to %s/question6", BUCKET_NAME)
     
 # 7. True or False: Driver supply always increases when demand increases during the two-week period.
 def q7(df:DataFrame)->DataFrame:
+    logger.info("q7: computing correlation between requests and drivers")
     corr = df.stat.corr('requests','drivers')
-    result = bool(corr>0.3)
-    return df.sparkSession.createDataFrame([(result,)], ['result'])
+    logger.info("q7: correlation value=%s", corr)
+    answer = bool(corr>0.3)
+    result = df.sparkSession.createDataFrame([(answer,)], ['answer'])
+    write_data(
+        df=result,
+        bucket_name=BUCKET_NAME,
+        folder='question7'
+    )
+    logger.info("q7: written to %s/question7", BUCKET_NAME)
 
 # 8. In which 72-hour period is the ratio of Zeroes to Eyeballs the highest?
 def q8(df:DataFrame)-> DataFrame:
+    logger.info("q8: computing 72-hour window with highest zeroes/eyeballs ratio")
     window = Window.orderBy("timeLocalTS").rowsBetween(-71, Window.currentRow)
     
     df_with_ratio = (
@@ -209,12 +261,17 @@ def q8(df:DataFrame)-> DataFrame:
         )
     )
 
-    return result
+    write_data(
+        df=result,
+        bucket_name=BUCKET_NAME,
+        folder='question8'
+    )
+    logger.info("q8: written to %s/question8", BUCKET_NAME)
 
 # 9. If you could add 5 drivers to any single hour of every day during the two-week period, which hour should you add them to? 
 # Hint: Consider both rider eyeballs and driver supply when choosing.
 def q9(df:DataFrame)-> DataFrame:
-    
+    logger.info("q9: computing hour to add 5 drivers")
     unmet_demand_df = (
         df
         .withColumn("unmet_demand", F.col("requests") - F.col("drivers"))
@@ -224,13 +281,18 @@ def q9(df:DataFrame)-> DataFrame:
         .limit(1)
     )    
 
-    return unmet_demand_df
+    write_data(
+        df=unmet_demand_df,
+        bucket_name=BUCKET_NAME,
+        folder='question9'
+    )
+    logger.info("q9: written to %s/question9", BUCKET_NAME)
 
 # 10. Looking at the data from all two weeks, which time might make the most sense to consider a true “end day” instead of midnight? 
 # (i.e when are supply and demand at both their natural minimums)
 
 def q10(df:DataFrame)-> DataFrame:
-    
+    logger.info("q10: computing suggested end-of-day hour")
     result = (
         df.groupby("hour")
         .agg(
@@ -246,10 +308,15 @@ def q10(df:DataFrame)-> DataFrame:
         
     )
     
-    return result
+    write_data(
+        df=result,
+        bucket_name=BUCKET_NAME,
+        folder='question10'
+    )
+    logger.info("q10: written to %s/question10", BUCKET_NAME)
 
-def main(question_id:int, path:str|None = None):
-    
+def main(question_id:str | None, path:str|None = None):
+    logger.info("main: starting processing path=%s question_id=%s", path, question_id)
     df = read_raw_data(spark=spark, source_file=path)
     df = standardize(df)
     
@@ -267,12 +334,25 @@ def main(question_id:int, path:str|None = None):
 
     }
 
-    result_df:DataFrame = questions[question_id](df)
-    result_df.show(5,truncate=False)
+    if not question_id:
+        questions_list = list(questions.keys())
+    else:
+        questions_list=sorted(
+            set(int(x.strip()) for x in question_id.split(','))
+        )
+
+    for question in questions_list:
+        logger.info("main: running question %s", question)
+        questions[question](df)
+        logger.info("main: completed question %s", question)
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--question-id',type=int,required=True)
+    parser.add_argument('--question-id',default=None)
     parser.add_argument('--path',type=str,required=True)
     args = parser.parse_args()
-    main(args.question_id,args.path) #'/opt/airflow/shared/data/dataset.csv'
+
+    main(args.question_id,args.path)
+
+    logger.info("main: finished processing; stopping spark")
+    spark.stop()
