@@ -1,3 +1,11 @@
+import sys
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+if str(BASE_DIR) not in sys.path:
+    sys.path.append(str(BASE_DIR))
+
+
 from shared.utils.sparkUtils import get_spark_session, get_logger, read_raw_data, write_data
 from shared.settings import appname, BUCKET_NAME
 
@@ -8,25 +16,19 @@ from pyspark.sql import DataFrame
 import argparse
 
 spark = get_spark_session(appname=appname, use_minio=True)
-
-def read_data(path:str)-> DataFrame:
-    df:DataFrame = (
-        spark.read.format('csv')
-        .option('inferSchema',True)
-        .option('header',True)
-        .load(path=path)
-    )
-    return df
+# logger = get_logger(__name__)
 
 def standardize(df:DataFrame)-> DataFrame:    
     # rename columns
-    columns_rename = {'Time (Local)': 'hour',
-               'Eyeballs ': 'eyeballs',
-               'Zeroes ': 'zeroes',
-               'Completed Trips ':'completed_trips',
-               'Requests ': 'requests',
-               'Unique Drivers': 'drivers',
-               'Date': 'date'}
+    columns_rename = {
+        'Time (Local)': 'hour',
+        'Eyeballs ': 'eyeballs',
+        'Zeroes ': 'zeroes',
+        'Completed Trips ':'completed_trips',
+        'Requests ': 'requests',
+        'Unique Drivers': 'drivers',
+        'Date': 'date'
+    }
     
     for old,new in columns_rename.items():
         df = df.withColumnRenamed(old, new)
@@ -186,7 +188,10 @@ def q8(df:DataFrame)-> DataFrame:
     
     df_with_ratio = (
         df
-        .withColumn("ratio",F.try_divide(F.col("zeroes") , F.col("eyeballs")))
+        # .withColumn("ratio",F.try_divide(F.col("zeroes") , F.col("eyeballs")))  only works in 3.5
+        .withColumn("ratio", 
+                    F.when(F.col("eyeballs") != 0, F.col("zeroes") / F.col("eyeballs"))
+                    .otherwise(None))
         .withColumn('72HoursWindow',F.sum(F.col('ratio')).over(window))
     )
 
@@ -242,3 +247,32 @@ def q10(df:DataFrame)-> DataFrame:
     )
     
     return result
+
+def main(question_id:int, path:str|None = None):
+    
+    df = read_raw_data(spark=spark, source_file=path)
+    df = standardize(df)
+    
+    questions = {
+        1:q1,
+        2:q2,
+        3:q3,
+        4:q4,
+        5:q5,
+        6:q6,
+        7:q7,
+        8:q8,
+        9:q9,
+        10:q10
+
+    }
+
+    result_df:DataFrame = questions[question_id](df)
+    result_df.show(5,truncate=False)
+
+if __name__=='__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--question-id',type=int,required=True)
+    parser.add_argument('--path',type=str,required=True)
+    args = parser.parse_args()
+    main(args.question_id,args.path) #'/opt/airflow/shared/data/dataset.csv'

@@ -39,7 +39,7 @@ def get_logger(name:str):
 
 
 
-def download_file(url, path="BigMartSales.csv"):
+def download_file(url, path):
     """Download the CSV dataset."""
     logger = get_logger(__name__)
     path = Path(path)

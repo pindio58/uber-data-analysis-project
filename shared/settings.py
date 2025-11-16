@@ -23,4 +23,4 @@ MINIO_ENDPOINT=os.getenv('MINIO_ENDPOINT')
 BUCKET_NAME=os.getenv('BUCKET_NAME')
 HADOOP_AWS_JAR = "org.apache.hadoop:hadoop-aws:3.3.4"
 appname='uber-data-analysis'
-URL = 'https://raw.githubusercontent.com/anshlambagit/PySpark-Full-Course/main/DATA%20and%20NOTEBOOK/BigMart%20Sales.csv'
+URL = 'https://raw.githubusercontent.com/ayushdixit487/Uber-Data-Analysis-Project-in-Pyspark/refs/heads/main/dataset.csv'

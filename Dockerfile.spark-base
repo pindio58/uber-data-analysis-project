@@ -19,7 +19,7 @@ RUN wget -q https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/${HADOOP
     wget -q https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.262/aws-java-sdk-bundle-1.12.262.jar
 
 
-RUN pip install -no-cache-dir \
+RUN pip install --no-cache-dir \
         findspark \
         requests \
         python-dotenv

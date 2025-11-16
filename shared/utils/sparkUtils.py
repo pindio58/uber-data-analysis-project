@@ -39,7 +39,7 @@ def get_spark_session(appname, use_minio=False):
     return spark
 
 
-def read_raw_data(spark, source_file):
+def read_raw_data(spark:SparkSession, source_file:Path):
     """Read raw CSV data."""
     logger = get_logger(__name__)
     path = str(source_file)
